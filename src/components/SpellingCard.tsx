@@ -26,21 +26,71 @@ export const SpellingCard: React.FC<SpellingCardProps> = ({ onWordCompleted, cor
 
   const inputRefs = useRef<(HTMLInputElement | null)[]>([]);
   const recentHistoryRef = useRef<string[]>([]);
+  // Queue to track words student answered incorrectly, scheduled to reappear after ~3 turns
+  const missedQueueRef = useRef<{ wordId: string; delayRemaining: number }[]>([]);
+
+  const checkAndTriggerCompletion = (currentInputs: string[], wordItem: WordItem) => {
+    const userSpelling = currentInputs.join("").toLowerCase();
+    const targetSpelling = wordItem.word.toLowerCase();
+
+    setIsCompleted(true);
+    if (userSpelling === targetSpelling) {
+      setIsCorrect(true);
+      playSparkleChime(); // Play magical sparkle chime on correct answer!
+
+      const updatedTotal = correctCount + 1;
+      onWordCompleted(updatedTotal);
+
+      // Check if unlocked a sticker (every 10 correct answers)
+      if (updatedTotal > 0 && updatedTotal % 10 === 0) {
+        const stickerIndex = (Math.floor(updatedTotal / 10) - 1) % STICKERS_COLLECTION.length;
+        const newSticker = STICKERS_COLLECTION[stickerIndex];
+        unlockSticker(newSticker.id);
+        setUnlockedNewSticker(newSticker);
+      }
+
+      confetti({
+        particleCount: 110,
+        spread: 85,
+        origin: { y: 0.6 },
+      });
+    } else {
+      setIsCorrect(false);
+      playSadTrombone(); // Play sad trombone on incorrect answer!
+
+      // Schedule missed word to reappear in ~3 turns
+      if (!missedQueueRef.current.some((item) => item.wordId === wordItem.id)) {
+        missedQueueRef.current.push({ wordId: wordItem.id, delayRemaining: 3 });
+      }
+    }
+  };
 
   const loadNextWord = () => {
-    // Filter out any word that appeared in the last 5 rounds
-    const availablePool = INITIAL_WORD_LIST.filter(
-      (item) => !recentHistoryRef.current.includes(item.id)
-    );
+    // Decrement delay countdown for queued missed words
+    missedQueueRef.current = missedQueueRef.current.map((item) => ({
+      ...item,
+      delayRemaining: item.delayRemaining - 1,
+    }));
 
-    // Safety fallback: if pool is empty (e.g. word list is smaller than 5), use full list
-    const candidateList = availablePool.length > 0 ? availablePool : INITIAL_WORD_LIST;
+    // Check if any missed word is ready to reappear (delayRemaining <= 0)
+    const readyMissedIndex = missedQueueRef.current.findIndex((item) => item.delayRemaining <= 0);
+    let target: WordItem;
 
-    // Pick random word from eligible candidates
-    const randomIndex = Math.floor(Math.random() * candidateList.length);
-    const target = candidateList[randomIndex];
+    if (readyMissedIndex !== -1) {
+      const missedItem = missedQueueRef.current[readyMissedIndex];
+      missedQueueRef.current.splice(readyMissedIndex, 1);
+      target = INITIAL_WORD_LIST.find((w) => w.id === missedItem.wordId) || INITIAL_WORD_LIST[0];
+    } else {
+      // Pick random word not recently seen
+      const availablePool = INITIAL_WORD_LIST.filter(
+        (item) => !recentHistoryRef.current.includes(item.id)
+      );
+      const candidateList = availablePool.length > 0 ? availablePool : INITIAL_WORD_LIST;
+      const randomIndex = Math.floor(Math.random() * candidateList.length);
+      target = candidateList[randomIndex];
+    }
 
-    // Update history queue (keep only last 5 words)
+    // Update recent history queue (keep last 5 words)
     recentHistoryRef.current = [...recentHistoryRef.current, target.id].slice(-5);
 
     setCurrentWordItem(target);
@@ -93,36 +143,8 @@ export const SpellingCard: React.FC<SpellingCardProps> = ({ onWordCompleted, cor
 
     // Check if user filled all boxes
     const filledCount = newInputs.filter((char) => char !== "").length;
-
     if (filledCount === currentWordItem.word.length) {
-      const userSpelling = newInputs.join("").toLowerCase();
-      const targetSpelling = currentWordItem.word.toLowerCase();
-
-      setIsCompleted(true);
-      if (userSpelling === targetSpelling) {
-        setIsCorrect(true);
-        playSparkleChime(); // Play magical sparkle chime on correct answer!
-
-        const updatedTotal = correctCount + 1;
-        onWordCompleted(updatedTotal);
-
-        // Check if unlocked a sticker (every 10 correct answers)
-        if (updatedTotal > 0 && updatedTotal % 10 === 0) {
-          const stickerIndex = (Math.floor(updatedTotal / 10) - 1) % STICKERS_COLLECTION.length;
-          const newSticker = STICKERS_COLLECTION[stickerIndex];
-          unlockSticker(newSticker.id);
-          setUnlockedNewSticker(newSticker);
-        }
-
-        confetti({
-          particleCount: 110,
-          spread: 85,
-          origin: { y: 0.6 },
-        });
-      } else {
-        setIsCorrect(false);
-        playSadTrombone(); // Play sad trombone on incorrect answer!
-      }
+      checkAndTriggerCompletion(newInputs, currentWordItem);
     }
   };
 
@@ -163,10 +185,16 @@ export const SpellingCard: React.FC<SpellingCardProps> = ({ onWordCompleted, cor
     setUsedHint(true);
     setIsSelectingHintSlot(false);
 
-    // Auto focus next empty box
-    const nextEmpty = newInputs.findIndex((val) => val === "");
-    if (nextEmpty !== -1) {
-      inputRefs.current[nextEmpty]?.focus();
+    // Check if revealing this hint filled the final box
+    const filledCount = newInputs.filter((val) => val !== "").length;
+    if (filledCount === currentWordItem.word.length) {
+      checkAndTriggerCompletion(newInputs, currentWordItem);
+    } else {
+      // Auto focus next empty box
+      const nextEmpty = newInputs.findIndex((val) => val === "");
+      if (nextEmpty !== -1) {
+        inputRefs.current[nextEmpty]?.focus();
+      }
     }
   };
 
