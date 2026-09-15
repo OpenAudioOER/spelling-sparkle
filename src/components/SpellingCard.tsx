@@ -69,14 +69,26 @@ export const SpellingCard: React.FC<SpellingCardProps> = ({ onWordCompleted, cor
   const handleInputChange = (index: number, val: string) => {
     if (isCompleted) return;
 
-    const upperVal = val.toUpperCase().slice(-1);
+    // Extract letter(s) typed or pasted
+    const cleanVal = val.replace(/[^a-zA-Z]/g, "").toUpperCase();
+    if (!cleanVal) {
+      // User cleared the box (e.g. backspace/delete)
+      const newInputs = [...inputs];
+      newInputs[index] = "";
+      setInputs(newInputs);
+      return;
+    }
+
+    // If typing a new letter into an already occupied box, take the newest character
+    const charToUse = cleanVal.slice(-1);
     const newInputs = [...inputs];
-    newInputs[index] = upperVal;
+    newInputs[index] = charToUse;
     setInputs(newInputs);
 
-    // Auto-advance cursor
-    if (upperVal !== "" && index < currentWordItem.word.length - 1) {
+    // Auto-advance cursor to next box immediately
+    if (index < currentWordItem.word.length - 1) {
       inputRefs.current[index + 1]?.focus();
+      inputRefs.current[index + 1]?.select();
     }
 
     // Check if user filled all boxes
@@ -115,8 +127,23 @@ export const SpellingCard: React.FC<SpellingCardProps> = ({ onWordCompleted, cor
   };
 
   const handleKeyDown = (index: number, e: React.KeyboardEvent<HTMLInputElement>) => {
-    if (e.key === "Backspace" && inputs[index] === "" && index > 0) {
+    if (e.key === "Backspace") {
+      if (inputs[index] !== "") {
+        // Clear current box
+        const newInputs = [...inputs];
+        newInputs[index] = "";
+        setInputs(newInputs);
+      } else if (index > 0) {
+        // Move focus back and clear previous box
+        const newInputs = [...inputs];
+        newInputs[index - 1] = "";
+        setInputs(newInputs);
+        inputRefs.current[index - 1]?.focus();
+      }
+    } else if (e.key === "ArrowLeft" && index > 0) {
       inputRefs.current[index - 1]?.focus();
+    } else if (e.key === "ArrowRight" && index < currentWordItem.word.length - 1) {
+      inputRefs.current[index + 1]?.focus();
     }
   };
 
