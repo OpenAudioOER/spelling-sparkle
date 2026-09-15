@@ -227,82 +227,56 @@ export const SpellingCard: React.FC<SpellingCardProps> = ({ onWordCompleted, cor
           ) : null}
         </div>
 
-        {/* Clean Single Input Field for Guaranteed Keyboard Flow */}
-        <div className="relative my-6 w-full max-w-md flex flex-col items-center">
-          {/* Visual Letter Boxes */}
-          <div className="flex items-center justify-center gap-2 md:gap-3 pointer-events-none mb-3">
-            {currentWordItem.word.split("").map((targetChar, idx) => {
-              const userChar = (inputs[idx] || "").toUpperCase();
-              let boxStyle = "border-4 border-palette-lavender bg-purple-50 text-purple-950";
+        {/* Tactile Letter Slots with Targeted Hint Selectors */}
+        <div className="flex flex-wrap items-center justify-center gap-3 max-w-full my-4">
+          {currentWordItem.word.split("").map((targetChar, idx) => {
+            const isFilled = inputs[idx] !== "";
+            let boxBorder = "border-4 border-palette-lavender bg-purple-50 text-purple-950";
 
-              if (isCompleted) {
-                if (userChar.toLowerCase() === targetChar.toLowerCase()) {
-                  boxStyle = "border-4 border-emerald-400 bg-palette-mint text-emerald-950 font-black scale-105";
-                } else {
-                  boxStyle = "border-4 border-rose-400 bg-pink-100 text-rose-950 font-black";
-                }
-              } else if (idx === inputs.length && !isCompleted) {
-                boxStyle = "border-4 border-palette-blue bg-blue-50 text-purple-950 ring-4 ring-palette-blue/40 animate-pulse";
+            if (isCompleted) {
+              const userChar = (inputs[idx] || "").toLowerCase();
+              const correctChar = targetChar.toLowerCase();
+              if (userChar === correctChar) {
+                boxBorder = "border-4 border-emerald-400 bg-palette-mint text-emerald-950 font-black scale-105";
+              } else {
+                boxBorder = "border-4 border-rose-400 bg-pink-100 text-rose-950 font-black animate-shake";
               }
+            } else if (isSelectingHintSlot && !isFilled) {
+              boxBorder = "border-4 border-amber-400 bg-yellow-100 cursor-pointer animate-pulse";
+            }
 
-              return (
-                <div
-                  key={idx}
-                  className={`w-12 h-14 md:w-16 md:h-18 rounded-2xl text-2xl md:text-3xl font-black text-center flex items-center justify-center shadow-md uppercase transition-all ${boxStyle}`}
-                >
-                  {userChar}
-                </div>
-              );
-            })}
-          </div>
+            return (
+              <div key={idx} className="flex flex-col items-center relative">
+                {/* Reveal button overlay during hint selection */}
+                {isSelectingHintSlot && !isFilled && (
+                  <button
+                    onClick={() => handleRevealSpecificSlot(idx)}
+                    className="absolute -top-3 z-10 bg-amber-400 text-amber-950 text-xs font-black px-2 py-0.5 rounded-full shadow-md hover:bg-amber-500 transition scale-110"
+                  >
+                    Reveal 💡
+                  </button>
+                )}
 
-          {/* Actual Hidden Direct Keyboard Input */}
-          <input
-            ref={(el) => {
-              inputRefs.current[0] = el;
-            }}
-            type="text"
-            value={inputs.join("")}
-            onChange={(e) => {
-              if (isCompleted) return;
-              const val = e.target.value.replace(/[^a-zA-Z]/g, "").toUpperCase().slice(0, currentWordItem.word.length);
-              const newInputs = val.split("");
-              setInputs(newInputs);
-
-              if (newInputs.length === currentWordItem.word.length) {
-                const userSpelling = val.toLowerCase();
-                const targetSpelling = currentWordItem.word.toLowerCase();
-
-                setIsCompleted(true);
-                if (userSpelling === targetSpelling) {
-                  setIsCorrect(true);
-                  playSparkleChime();
-                  const updatedTotal = correctCount + 1;
-                  onWordCompleted(updatedTotal);
-
-                  if (updatedTotal > 0 && updatedTotal % 10 === 0) {
-                    const stickerIndex = (Math.floor(updatedTotal / 10) - 1) % STICKERS_COLLECTION.length;
-                    const newSticker = STICKERS_COLLECTION[stickerIndex];
-                    unlockSticker(newSticker.id);
-                    setUnlockedNewSticker(newSticker);
-                  }
-
-                  confetti({
-                    particleCount: 110,
-                    spread: 85,
-                    origin: { y: 0.6 },
-                  });
-                } else {
-                  setIsCorrect(false);
-                  playSadTrombone();
-                }
-              }
-            }}
-            disabled={isCompleted}
-            placeholder="Type your word here..."
-            className="w-full text-center px-4 py-3 rounded-2xl border-4 border-palette-purple/30 text-xl font-bold text-purple-950 focus:outline-none focus:ring-4 focus:ring-palette-pink uppercase placeholder:normal-case placeholder:text-gray-400 placeholder:font-normal bg-purple-50/50"
-            autoFocus
-          />
+                <input
+                  ref={(el) => {
+                    inputRefs.current[idx] = el;
+                  }}
+                  type="text"
+                  maxLength={1}
+                  value={inputs[idx] || ""}
+                  onChange={(e) => handleInputChange(idx, e.target.value)}
+                  onKeyDown={(e) => handleKeyDown(idx, e)}
+                  disabled={isCompleted}
+                  onClick={() => {
+                    if (isSelectingHintSlot && !isFilled) {
+                      handleRevealSpecificSlot(idx);
+                    }
+                  }}
+                  className={`w-12 h-14 md:w-16 md:h-18 rounded-2xl text-2xl md:text-3xl font-black text-center shadow-md focus:outline-none focus:ring-4 focus:ring-palette-blue uppercase transition-all ${boxBorder}`}
+                />
+              </div>
+            );
+          })}
         </div>
 
         {/* Completion Feedback Card */}
