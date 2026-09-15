@@ -38,18 +38,9 @@ export const playWordAudio = (word: string): Promise<void> => {
 
     audio.play().then(() => {
       // Successfully playing MP3
-    }).catch((err) => {
-      console.warn("MP3 playback failed, falling back to Web Speech API:", err);
-      if (typeof window !== "undefined" && "speechSynthesis" in window) {
-        window.speechSynthesis.cancel();
-        const utterance = new SpeechSynthesisUtterance(word);
-        utterance.rate = 0.85;
-        utterance.onend = () => resolve();
-        utterance.onerror = () => resolve();
-        window.speechSynthesis.speak(utterance);
-      } else {
-        resolve();
-      }
+    }).catch(() => {
+      // MP3 file not played -> Do NOTHING (Speech Synthesis / Robotic voice permanently disabled)
+      resolve();
     });
   });
 };
